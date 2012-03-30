@@ -16,23 +16,27 @@ var lon = geoip_longitude();
 // models
 var Venue = Backbone.Model.extend({
     localStorage: new Store("sndVenues"),
-    render: function() {
+    render: function() { // renders data into DOM
         var l = this.get('location');
         var addr = l.address ? l.address : l.city;
+        // static google map picture url
         var gmapsPic = 'http://maps.googleapis.com/maps/api/staticmap?zoom=14&maptype=roadmap&sensor=false&size='+$('#tracksWrapper').width()+'x80&center='+l.lat+','+l.lng+'&markers=color:red|color:red|'+l.lat+','+l.lng;
+        // html generation
         $('<div class="venue" id="'+this.get('id')+'"></div>')
             .append('<h3>“'+this.get('name')+'” <small>'+addr+'</small></h3>')
             .append('<p><img src="' + gmapsPic + '" alt="map"></p>')
             .append('<ul class="unstyled"></ul>')
             .appendTo('#tracksWrapper');
+        // render each track of this venue
         _.each(this.get('tracks'), function(t) { Tracks.get(t).render(); });
         this.getInstagrams(); // pre-fetch istagrams urls
     },
-    getInstagrams: function() {
+    getInstagrams: function() { // fetches instagrams and stores urls of images in local cache
         var l = this.get('location');
-        var v = this; // cache for use in callback
+        var v = this; // for use in callback
         var venueInstagramsUrl = instaUrl + 'foursquare_v2_id=' + v.id + '&lat=' + l.lat + '&lng=' + l.lng + '&callback=?';
         $.getJSON(venueInstagramsUrl, function(data) {
+            // digging images urls from json API data with pluck
             var images = _.pluck(data.data, 'images');
             images = _.pluck(images, 'low_resolution');
             v.set({ instagrams: _.pluck(images, 'url') });
@@ -73,23 +77,27 @@ function loadTrack(trckId) {
     $('#player').attr('src', playerUrl + 'http://api.soundcloud.com/tracks/' + trckId + '?auto_play=true');
     setInstaSlides(trckId);
 };
+// loads first track into player without autoplay, calls instagrams renderer
 function selectFirstTrack() {
     var trckId = $('.playit').eq(0).attr('data-track');
     $('#player').attr('src', playerUrl + 'http://api.soundcloud.com/tracks/' + trckId);
     setInstaSlides(trckId);
 };
+// instagrams renderer
 function setInstaSlides(trckId) {
     var trckVenue = Tracks.get(trckId).get('venue_id');
-    if (curVenue == trckVenue)
+    if (curVenue == trckVenue) // update instagrams slides only if venue changed
         return true;
     $('#instagrams').empty();
-    var imgsHtml = '';
+    var imgsHtml = ''; // build html images list
     _.each(Venues.get(trckVenue).get('instagrams').sort(function() { return 0.5 - Math.random(); }), function(i) {
         imgsHtml += '<img src="' + i +'" alt="">';
     });
+    // render slides
     $('#instagrams').append(imgsHtml).cycle({ fx: 'scrollHorz', timeout: 5000 });
     curVenue = trckVenue;
 };
+// gets location param from GET url
 function getLocFromUrl() {
     var regex = new RegExp("[\\?&]l=([^&#]*)");
     var results = regex.exec(window.location.search);
@@ -98,27 +106,30 @@ function getLocFromUrl() {
     else
         return decodeURIComponent(results[1].replace(/\+/g, " "));
 };
+// updates progress bar while API requests
 function updateProgress() {
     venuesCounter--;
     var pcnt = 100 - ((100 / venuesTotal) * venuesCounter);
     $('#fetchingProgress').width(pcnt + '%');
-    if (pcnt == 100) {
+    if (pcnt == 100) { // if load finished
         $('#fetchingProgress').parent().fadeOut();
         selectFirstTrack();
     }
 };
-// process venues (fetch and start check for soundcloud tracks)
+// processes venues (fetches and starts check for soundcloud tracks)
 function processVenues(lat, lon) {
     $.getJSON('https://api.foursquare.com/v2/venues/search?ll='+lat+','+lon+'&radius=5000&limit=50&client_id='+fsAppId+'&client_secret='+fsAppSec+'&v=20120325&callback=?',
         function(data) {
-            venuesCounter = venuesTotal = data.response.venues.length;
+            venuesCounter = venuesTotal = data.response.venues.length; // counter used for progress bar
             $('#fetchingProgress').width('0%').parent().show();
             console.log('got ' + data.response.venues.length + ' venues, fetching tracks for each');
             _.each(data.response.venues, function(v) { setTimeout(fetchTracksForVenue, 500, v); });
         }
     );
 };
+// fetches all tracks for single venue from Soundcloud
 function fetchTracksForVenue(v) {
+    // check if venue is already in cache
     if (Venues.get(v.id)) {
         updateProgress();
         Venues.get(v.id).render();
@@ -131,12 +142,13 @@ function fetchTracksForVenue(v) {
         function(data) {
             updateProgress();
             if (data.length == 0) {
-                // cache venue without tracks
+                // cache venue without tracks, don't render
                 var bv = new BadVenue({ id: v.id });
                 bv.save();
                 BadVenues.add(bv);
                 return false;
             }
+            // cache venue and tracks
             var venue = new Venue({ id: v.id, name: v.name, location: v.location, has_track: true, tracks: [] });
             _.each(data, function(t) {
                 var track = new Track({id: t.id, title: t.title, pic: t.artwork_url, venue_id: v.id});
@@ -151,6 +163,7 @@ function fetchTracksForVenue(v) {
         }
     );
 };
+// geocode search string into geo coordinates using Google maps
 function geocodeToLLRender(loc, cb) {
     var geocoder = new google.maps.Geocoder();
     geocoder.geocode({ address: loc }, function(results, status) {
@@ -165,14 +178,17 @@ function geocodeToLLRender(loc, cb) {
             $('#fieldblock').addClass('error');
     });
 };
+// init
 $(document).ready(function() {
     var location = getLocFromUrl();
     if (location)
         geocodeToLLRender(location, processVenues); // processVenues is callback
     else
         processVenues(lat, lon); // default from geo ip
+    // default placeholder in search form
     $('#search-geo-data').val(location ? location : geoip_city() + ', ' + geoip_country_name());
+    // play track on click
     $('.playit').live('click', function() { loadTrack($(this).attr('data-track')); return false; });
-    $('#search-geo-form').submit(function() { geocodeToLLRender($('#search-geo-data').val(), processVenues); return false; });
+    // cleanup from past search results
     $('#search-geo').focus(function() { $('#search-geo-data').removeClass('error').removeClass('success'); });
 });

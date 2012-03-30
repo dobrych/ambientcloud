@@ -1,0 +1,2 @@
+Very basic proof of concept JS app that fetches data from Soundcloud, Foursquare and Instagram APIs,
+and tries to mix location based visuals with audio.

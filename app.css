@@ -1,0 +1,5 @@
+#rightWrap { width: 45%; position: fixed; right: 20px; }
+#player { min-height: 180px; width: 90%; border: none; margin-bottom: 50px; }
+#tracksWrapper li { margin-left: 0.5em; background-color: white; overflow: hidden; }
+#instagrams { margin: 0px auto; }
+.venue { margin-bottom: 40px; }
